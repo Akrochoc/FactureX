@@ -20,6 +20,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showResend, setShowResend] = useState(false);
+  const [showSignUpCTA, setShowSignUpCTA] = useState(false); // New state for login error CTA
   
   const [formData, setFormData] = useState({
     email: '',
@@ -41,6 +42,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
       setErrorMsg(null);
       setSuccessMsg(null);
       setShowResend(false);
+      setShowSignUpCTA(false);
       setShowPassword(false);
       setShowConfirmPassword(false);
     }
@@ -73,12 +75,27 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
     };
   };
 
+  // Helper to detect email provider URL
+  const getEmailProviderLink = (email: string) => {
+      const domain = email.split('@')[1]?.toLowerCase();
+      if (!domain) return 'mailto:';
+      
+      if (domain.includes('gmail')) return 'https://mail.google.com';
+      if (domain.includes('outlook') || domain.includes('hotmail') || domain.includes('live')) return 'https://outlook.live.com';
+      if (domain.includes('yahoo')) return 'https://mail.yahoo.com';
+      if (domain.includes('proton')) return 'https://mail.proton.me';
+      if (domain.includes('icloud')) return 'https://www.icloud.com/mail';
+      
+      return `mailto:${email}`; // Fallback to default client
+  };
+
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg(null);
     setSuccessMsg(null);
     setShowResend(false);
+    setShowSignUpCTA(false);
 
     try {
         const { data, error } = await supabase.auth.signInWithPassword({
@@ -95,7 +112,9 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
             setErrorMsg("Veuillez confirmer votre email pour accéder à votre compte.");
             setShowResend(true);
         } else if (err.message && (err.message.includes("Invalid login credentials") || err.message.includes("Invalid email or password"))) {
-            setErrorMsg("Email ou mot de passe incorrect.");
+            // Specific handling for invalid credentials (which implies user might not exist)
+            setErrorMsg("Identifiants incorrects ou compte inexistant.");
+            setShowSignUpCTA(true);
         } else {
             setErrorMsg(err.message || "Erreur de connexion");
         }
@@ -237,13 +256,25 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
       </div>
 
       {successMsg && (
-          <div className="bg-green-50 text-green-700 p-4 rounded-xl text-xs font-bold border border-green-100 text-center flex flex-col gap-2">
-              <span>{successMsg}</span>
+          <div className="bg-green-50 text-green-700 p-4 rounded-xl text-xs font-bold border border-green-100 text-center flex flex-col gap-3">
+              <div className="flex items-center justify-center gap-2">
+                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                 <span>{successMsg}</span>
+              </div>
+              <a 
+                href={getEmailProviderLink(formData.email)} 
+                target="_blank" 
+                rel="noreferrer"
+                className="bg-green-600 text-white py-2.5 px-4 rounded-lg uppercase tracking-widest text-[10px] font-black hover:bg-green-700 transition-colors shadow-lg shadow-green-500/20 flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                Ouvrir ma boite mail
+              </a>
           </div>
       )}
 
       {errorMsg && (
-          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold border border-red-100 text-center flex flex-col gap-2 items-center">
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl text-xs font-bold border border-red-100 text-center flex flex-col gap-3 items-center">
               <span>{errorMsg}</span>
               {showResend && (
                   <button 
@@ -253,6 +284,15 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
                     className="text-blue-600 underline hover:text-blue-800"
                   >
                     Renvoyer l'email de confirmation
+                  </button>
+              )}
+              {showSignUpCTA && (
+                  <button 
+                    type="button"
+                    onClick={() => { setView('REGISTER'); setErrorMsg(null); }}
+                    className="bg-red-600 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-red-700 transition-colors shadow-lg shadow-red-500/20 w-full"
+                  >
+                    Créer un compte gratuitement
                   </button>
               )}
           </div>
@@ -305,7 +345,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
       
       <div className="text-center pt-4 border-t border-slate-100 dark:border-slate-800">
         <p className="text-xs text-slate-500">Pas encore de compte ?</p>
-        <button onClick={() => { setView('REGISTER'); setSuccessMsg(null); setErrorMsg(null); }} className="text-blue-600 font-black text-xs uppercase tracking-widest mt-2 hover:underline">
+        <button onClick={() => { setView('REGISTER'); setSuccessMsg(null); setErrorMsg(null); setShowSignUpCTA(false); }} className="text-blue-600 font-black text-xs uppercase tracking-widest mt-2 hover:underline">
           Créer un compte entreprise
         </button>
       </div>
@@ -437,7 +477,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, currentUser, onL
       </form>
       
       <div className="text-center pt-4 border-t border-slate-100 dark:border-slate-800">
-        <button onClick={() => { setView('LOGIN'); setSuccessMsg(null); setErrorMsg(null); }} className="text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-blue-600 transition-colors">
+        <button onClick={() => { setView('LOGIN'); setSuccessMsg(null); setErrorMsg(null); setShowSignUpCTA(false); }} className="text-slate-400 font-bold text-xs uppercase tracking-widest hover:text-blue-600 transition-colors">
           Retour à la connexion
         </button>
       </div>
